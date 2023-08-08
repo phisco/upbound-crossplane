@@ -24,7 +24,6 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"reflect"
 	"regexp"
 	"strconv"
 	"strings"
@@ -194,7 +193,7 @@ func ResolveMap(t v1.MapTransform, input any) (any, error) {
 		}
 		return val, nil
 	default:
-		return nil, errors.Errorf(errFmtMapTypeNotSupported, reflect.TypeOf(input).String())
+		return nil, errors.Errorf(errFmtMapTypeNotSupported, fmt.Sprintf("%T", input))
 	}
 }
 
@@ -247,7 +246,7 @@ func matchesLiteral(p v1.MatchTransformPattern, input any) (bool, error) {
 	}
 	inputStr, ok := input.(string)
 	if !ok {
-		return false, errors.Errorf(errFmtMatchInputTypeInvalid, reflect.TypeOf(input).String())
+		return false, errors.Errorf(errFmtMatchInputTypeInvalid, fmt.Sprintf("%T", input))
 	}
 	return inputStr == *p.Literal, nil
 }
@@ -265,7 +264,7 @@ func matchesRegexp(p v1.MatchTransformPattern, input any) (bool, error) {
 	}
 	inputStr, ok := input.(string)
 	if !ok {
-		return false, errors.Errorf(errFmtMatchInputTypeInvalid, reflect.TypeOf(input).String())
+		return false, errors.Errorf(errFmtMatchInputTypeInvalid, fmt.Sprintf("%T", input))
 	}
 	return re.MatchString(inputStr), nil
 }
@@ -337,12 +336,19 @@ func stringConvertTransform(t *v1.StringConversionType, input any) (string, erro
 }
 
 func stringGenerateHash[THash any](input any, hashFunc func([]byte) THash) (THash, error) {
-	inputJSON, err := json.Marshal(input)
-	if err != nil {
-		var ret THash
-		return ret, errors.Wrap(err, errMarshalJSON)
+	var b []byte
+	var err error
+	switch v := input.(type) {
+	case string:
+		b = []byte(v)
+	default:
+		b, err = json.Marshal(input)
+		if err != nil {
+			var ret THash
+			return ret, errors.Wrap(err, errMarshalJSON)
+		}
 	}
-	return hashFunc(inputJSON), nil
+	return hashFunc(b), nil
 }
 
 func stringTrimTransform(input any, t v1.StringTransformType, trim string) string {
@@ -380,7 +386,7 @@ func ResolveConvert(t v1.ConvertTransform, input any) (any, error) {
 		return nil, err
 	}
 
-	from := v1.TransformIOType(reflect.TypeOf(input).String())
+	from := v1.TransformIOType(fmt.Sprintf("%T", input))
 	if !from.IsValid() {
 		return nil, errors.Errorf(errFmtConvertInputTypeNotSupported, input)
 	}
